@@ -1,0 +1,125 @@
+#Email:
+1 - plugins -> Email extention template plugin, Email extention plugin 
+2 - to set email address in jenkins :
+   *in jenkins -> manage jenkins -> system -> jenkins location :
+   *System Admin e-mail address = nuvvai.team@gmail.com
+3 - in jenkins -> manage jenkins -> system -> extended email notification :
+    *SMTP server = smtp.gmail.com
+    *SMTP Port = 465
+    *in Advanced section:
+      1-add credentials:
+         username: nuvvai.team@gmail.com
+         password: bpncurlmqlqmwbfq
+         ID -> email
+      2-check Use SSL toolbox
+    *Default Content Type choose -> HTML (text/html)
+    *Default Triggers -> check always toolbox
+4- to send test email to make sure that every thing is ok:
+   *in jenkins -> manage jenkins -> system -> email notification :
+   *SMTP server = smtp.gmail.com
+   *in Advanced section:
+     1-check Use SMTP Authentication toolbox
+          username: nuvvai.team@gmail.com
+          password: bpncurlmqlqmwbfq  
+     2-check Use SSL toolbox
+     3-SMTP Port = 465
+     4-make sure that Charset = UTF-8
+   *check Test configuration by sending test e-mail toolbox and add your personal email to send a test email
+   *click on test configuration it shoud gives you that Email was successfully sent
+
+
+#Slack:
+1 - plugins -> slack notification plugin
+2 - in jenkins -> manage jenkins -> system -> Slack
+    *Workspace = Jenkins
+    *add credentials:
+        type -> secret text
+        secret -> xoxb-7891873144487-8594004131942-WzY4Q8dLENF6rlMaP0PkUSRN
+        ID -> slack-token
+    *Default channel / member id = grad-project
+    *check Custom slack app bot user toolbox
+       
+#tools:
+1 - go tool:
+    *plugin -> go plugin
+    *in jenkins -> manage jenkins -> tools -> Go installations -> Add Go:
+       Name =  go-1.24.0
+       check Install automatically toolbox:
+          Version = Go 1.24.0  
+2 - nodejs tool:
+    *plugin -> nodejs plugin
+    *in jenkins -> manage jenkins -> tools -> NodeJS installations -> Add NodeJS:
+       Name =  nodejs-23.7.0
+       check Install automatically toolbox:
+          Version = NodeJS 23.7.0 
+
+#trivy
+1 - run inside the jenkins container or the agent:
+    """
+      apt-get install wget apt-transport-https gnupg lsb-release
+      wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key
+      apt-key add -
+      wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | tee /etc/apt/trusted.gpg.d/trivy.asc
+      echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/trivy.list
+      apt update && apt install -y trivy
+      trivy --version
+   """
+
+#Sonarqube
+1 - run the docker-compose.yaml file using "docker-compose up -d"
+2 - open sonarqube container at http://localhost:9000/
+       username = admin
+       password = admin
+    *then it will ask you to add new username and password
+
+#add sonarqube webhook:
+1 - in sonarqube UI -> administration -> configuration -> webhooks -> create:
+    Name = jenkins
+    URL = http://host.docker.internal:8080/sonarqube-webhook/
+    secret = سيبيه فاضى متكتبيش حاجة فيه
+
+#sonarqube project
+1 - in sonarqube UI -> project -> create -> <> Manually 
+    *Project display name = add name to the project
+    *Project key = add the same name
+    *Main branch name = main
+    *choose -> locally
+    *add token name and change Expires in to be -> No expiration then generate token -> copy the token we will use it later -> continue
+    
+#sonarqube configuration in jenkins
+1 - plugin -> sonarqube scanner for jenkins
+2 - in jenkins -> manage jenkins -> system -> SonarQube servers -> Add sonarQube
+    *Name = sonarqube-server
+    *Server URL = http://host.docker.internal:9000
+    *Server authentication token -> add credentials:
+        type -> secret text
+        secret -> add token you generate from sonareqube UI
+        ID -> sonarqube-token
+3 - in jenkins -> manage jenkins -> tools -> SonarQube Scanner installations -> Add SonarQube Scanner
+    *Name = sonarqube-scanner702
+    *install automatically
+    *Version = SonarQube Scanner 7.0.2.4839
+
+#inside the jenkins container or the agent run: 
+   """
+     apt update && \
+    apt install -y php-cli php-mbstring php-dom php-tidy php-curl composer && \
+    apt-get update && \
+    apt-get install -y python3 python3-pip python3-venv && \
+    ln -s /usr/bin/python3 /usr/bin/python \
+    apt-get update && apt-get install -y wkhtmltopdf
+   """
+
+#for the build & push image to dockerhub part
+1 - add credentials:
+    *GitHub:
+        username = your github username
+        passswor = github token
+        ID -> github_token
+    *DockerHub:
+        username = your dockerhub username
+        passswor = dockerhub token or password
+        ID -> dockerhub
+
+#notes:
+1 - make sure that the version of java installed on jenkins container or the agent and used by jenkins is jdk17

@@ -1,0 +1,185 @@
+pipeline { 
+    agent any
+
+tools {
+        nodejs 'nodejs-23.7.0'
+    }
+
+environment {
+    GIT_REPO_URL = 'https://github.com/Nuvvai/Graduation-project-node-api.git' // github repo where the app exist
+    BRANCH_TYPE = "main" // the name of the branch where the app exist
+    IMAGE_TYPE = "nuvvai_backend" // used in the image name
+    DOCKER_HUB_REPO = 'nagham94' // name of dockerhub repo
+    SONAR_SCANNER_HOME = tool 'sonarqube-scanner702' // sonar scanner server
+    SONAR_PROJECT_KEY = 'nuvvai-app' // sonar scanner project name
+    }
+
+options {
+        disableResume() // Prevents the pipeline from resuming after a Jenkins restart or crash
+        // If a new build starts while another is already running, the previous build is aborted to prevent conflicts
+        disableConcurrentBuilds abortPrevious: true
+    }
+
+stages {
+    stage('Checkout Application Repository') {
+            steps {
+                script {
+                    deleteDir()  // Clears workspace before checking out repo
+                    git branch: BRANCH_TYPE, credentialsId: 'github_token', url: GIT_REPO_URL
+                    // Set GIT_COMMIT variable
+                    env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    sh "echo Checked out commit: ${env.GIT_COMMIT}"
+                    // Set IMAGE_NAME variable
+                    env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${IMAGE_TYPE}:${env.GIT_COMMIT}"
+                    sh "echo Global Image Name: ${env.IMAGE_NAME}"
+                }
+            }
+        }
+    
+    stage('Installing Dependencies') {
+        options { timestamps() }
+        steps {
+           sh 'npm install'
+           }
+        }
+    
+    stage('Dependency check') {
+        options { timestamps() }
+        steps {
+           sh 'npm audit'
+           }
+        }
+
+//    stage('Unit Testing') {
+//      steps {
+//        catchError(buildResult: 'SUCCESS', message: 'Oops! it will be fixed in future releases', stageResult: 'UNSTABLE') {
+//            // Run tests and output results in JUnit format
+//            sh 'npm test'
+
+//            // Publish test results to Jenkins UI / Blue Ocean
+//            junit allowEmptyResults: true, keepProperties: true, testResults: 'test-results/test-results.xml'
+
+//            // Publish code coverage HTML report
+//            publishHTML([
+//               allowMissing: true,
+//               alwaysLinkToLastBuild: true,
+//               keepAll: true,
+//               reportDir: 'coverage/lcov-report',
+//               reportFiles: 'index.html',
+//               reportName: 'Code Coverage HTML Report',
+//               reportTitles: '',
+//               useWrapperFileDirectly: true
+//            ])
+//        }
+//      }
+//    }
+
+    stage('SonarQube Analysis') {
+            steps {
+                script {
+                    timeout(time: 5, unit: 'MINUTES') {
+                    withSonarQubeEnv('sonarqube-server') {
+                        sh """
+                            $SONAR_SCANNER_HOME/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.sources=. \
+                                -Dsonar.language=${sonarLanguage} \
+                                -Dsonar.sourceEncoding=UTF-8 \
+                                -Dsonar.exclusions=${sonarExclusions} \
+                        """
+                    }
+                }
+                    // Quality Gate check but does NOT stop the pipeline on failure
+                    script {
+                        def qualityGate = waitForQualityGate()
+                        if (qualityGate.status != 'OK') {
+                            echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
+                        }
+                    }
+                }
+            }
+    }
+
+    stage('Build Docker Image') {
+            steps {
+                script {
+                    sh """
+                        docker build -t ${env.IMAGE_NAME} .
+                        echo "Built Docker image: ${env.IMAGE_NAME}"
+                    """
+                }
+            }
+    }
+
+    stage('Trivy Vulnerability Scanner') { 
+            steps {
+                sh  """ 
+                    trivy image ${env.IMAGE_NAME} \
+                        --severity LOW,MEDIUM,HIGH \
+                        --exit-code 0 \
+                        --quiet \
+                        --format json -o trivy-image-MEDIUM-results.json
+
+                    trivy image ${env.IMAGE_NAME} \
+                        --severity CRITICAL \
+                        --exit-code 1 \
+                        --quiet \
+                        --format json -o trivy-image-CRITICAL-results.json
+                """
+            }
+
+            post {
+                always {
+                    sh '''
+                        trivy convert \
+                            --format template --template "@/usr/local/share/trivy/templates/html.tpl" \
+                            --output trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.json 
+
+                        trivy convert \
+                            --format template --template "@/usr/local/share/trivy/templates/html.tpl" \
+                            --output trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.json
+
+                        trivy convert \
+                            --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
+                            --output trivy-image-MEDIUM-results.xml  trivy-image-MEDIUM-results.json 
+
+                        trivy convert \
+                            --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
+                            --output trivy-image-CRITICAL-results.xml trivy-image-CRITICAL-results.json          
+                    '''
+                    junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-CRITICAL-results.xml'
+
+                    junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-MEDIUM-results.xml'
+
+                    publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-CRITICAL-results.html', reportName: 'Trivy Image Critical Vul Report', reportTitles: '', useWrapperFileDirectly: true])
+
+                    publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-MEDIUM-results.html', reportName: 'Trivy Image Medium Vul Report', reportTitles: '', useWrapperFileDirectly: true])
+                }
+            }
+    }
+    
+    stage('Login to Docker Hub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                    }
+                }
+            }
+    }
+
+    stage('Push Docker Images to Docker Hub') {
+            steps {
+                script {
+                        sh """
+                           docker push ${env.IMAGE_NAME}
+                           echo "Pushed Docker image: ${env.IMAGE_NAME}"
+                        """
+                }
+            }
+    }
+
+    }
+
+
+}
