@@ -11,7 +11,9 @@ environment {
     IMAGE_TYPE = "nuvvai_backend" // used in the image name
     DOCKER_HUB_REPO = 'nagham94' // name of dockerhub repo
     SONAR_SCANNER_HOME = tool 'sonarqube-scanner702' // sonar scanner server
-    SONAR_PROJECT_KEY = 'nuvvai-app' // sonar scanner project name
+    SONAR_PROJECT_KEY = 'solar-app' // sonar scanner project name
+    USER_NAME = "Nagham"
+    EMAIL_RECIPIENTS = "naghamfathy94@gmail.com" // email of the user
     }
 
 options {
@@ -74,6 +76,12 @@ stages {
 //      }
 //    }
 
+    stage('Build Application') {
+            steps {
+                sh 'npm run build'
+            }
+    }
+
     stage('SonarQube Analysis') {
             steps {
                 script {
@@ -83,9 +91,6 @@ stages {
                             $SONAR_SCANNER_HOME/bin/sonar-scanner \
                                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                                 -Dsonar.sources=. \
-                                -Dsonar.language=${sonarLanguage} \
-                                -Dsonar.sourceEncoding=UTF-8 \
-                                -Dsonar.exclusions=${sonarExclusions} \
                         """
                     }
                 }
@@ -158,27 +163,58 @@ stages {
             }
     }
     
-    stage('Login to Docker Hub') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-                    }
-                }
-            }
+//    stage('Login to Docker Hub') {
+//            steps {
+//                script {
+//                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+//                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+//                    }
+//                }
+//            }
+//    }
+
+//    stage('Push Docker Images to Docker Hub') {
+//            steps {
+//                script {
+//                        sh """
+//                           docker push ${env.IMAGE_NAME}
+//                           echo "Pushed Docker image: ${env.IMAGE_NAME}"
+//                        """
+//                }
+//            }
+//    }
+
     }
 
-    stage('Push Docker Images to Docker Hub') {
-            steps {
-                script {
-                        sh """
-                           docker push ${env.IMAGE_NAME}
-                           echo "Pushed Docker image: ${env.IMAGE_NAME}"
-                        """
-                }
-            }
-    }
+    post {
+      always {
+        sh 'wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf'
+        sh 'wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf'
+        // Send Email Notification
+        emailext( 
+            subject: "Nuvvai Security Scan Report - Jenkins Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: """
+              <h2>Security Scan Report - Build ${currentBuild.result}</h2>
+              <p>Dear Development Team,</p>
+              <p>The Trivy vulnerability scan for the latest build of the <strong>Nuvvai</strong> application has completed.</p>
+              <p>Please review the attached reports for detailed information on detected vulnerabilities.</p>
+              <ul>
+              <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+              <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+              </ul>
+              <p>Action is required to address any <strong>CRITICAL</strong> or <strong>HIGH</strong> severity issues identified during the scan.</p>
+              <p>Ensure to resolve these findings promptly to maintain the security integrity of the application.</p>
+              <p>Reach out to the DevOps team if you need any support or clarification.</p>
+              <p>Best regards,</p>
+              <p><strong>DevOps Team - Nuvvai</strong></p>
+            """,
+            to: EMAIL_RECIPIENTS,
+            mimeType: 'text/html',
+            attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf'
+        )
 
+
+      }
     }
 
 
