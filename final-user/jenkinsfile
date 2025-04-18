@@ -1,4 +1,4 @@
-def slackNotificationMethod(String buildStatus = 'STARTED') {
+def slackNotificationMethod(String buildStatus = 'STARTED', String PROJECT_NAME, String SLACK_CHANNEL) {
     buildStatus = buildStatus ?: 'SUCCESS'
 
     def color
@@ -11,9 +11,9 @@ def slackNotificationMethod(String buildStatus = 'STARTED') {
         color = '#ec2805'
     }
 
-    def msg = "${buildStatus}: ${env.JOB_NAME} #${env.BUILD_NUMBER}:\n${env.BUILD_URL}"
+    def msg = "${buildStatus}: ${PROJECT_NAME} - ${env.JOB_NAME} #${env.BUILD_NUMBER}:\n${env.BUILD_URL}"
 
-    slackSend(color: color, message: msg)
+    slackSend(channel: SLACK_CHANNEL, color: color, message: msg)
 }
 
 pipeline { 
@@ -27,13 +27,13 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'nagham94' // name of dockerhub repo
         GIT_REPO_URL = 'https://github.com/Nagham94/solar-system-gitea-jenkins-advanced.git' // github repo where the app exist
-        IMAGE_TYPE = "solar-app" // the image name 
+        PROJECT_NAME = "solar-app" // the image name 
         BRANCH_TYPE = "main" // the name of the branch where the app exist
         TECHNOLOGY = 'nodejs' // the technology name (e.g., "nodejs", "django", "golang", etc.)
         DOCKERFILES_REPO = 'https://github.com/Nagham94/Dockerfiles2.git' // name of the dockerfile repo
         SONAR_SCANNER_HOME = tool 'sonarqube-scanner702' // sonar scanner server
         SONAR_PROJECT_KEY = 'solar-app' // sonar scanner project name 
-        SLACK_CHANNEL = "#grad-project" // name of slack channel
+        SLACK_CHANNEL = "#nuvvai-users-builds" // name of slack channel
         USER_NAME = "Nagham"
         EMAIL_RECIPIENTS = "naghamfathy94@gmail.com" // email of the user
     }
@@ -54,7 +54,7 @@ pipeline {
                     env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     sh "echo Checked out commit: ${env.GIT_COMMIT}"
                     // Set IMAGE_NAME variable
-                    env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${IMAGE_TYPE}:${env.GIT_COMMIT}"
+                    env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${PROJECT_NAME}:${env.GIT_COMMIT}"
                     sh "echo Global Image Name: ${env.IMAGE_NAME}"
                 }
             }
@@ -292,8 +292,8 @@ pipeline {
     post {
       always {
         // Slack Message
-        slackNotificationMethod("${currentBuild.result}")
-        // Upload Trivy Reports to Slack
+        slackNotificationMethod("${currentBuild.result}", env.PROJECT_NAME, env.SLACK_CHANNEL)
+        // convert reports from HTML to pdf
         sh 'wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf'
         sh 'wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf'
 

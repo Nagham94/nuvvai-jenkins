@@ -1,3 +1,21 @@
+def slackNotificationMethod(String buildStatus = 'STARTED', String PROJECT_NAME, String SLACK_CHANNEL) {
+    buildStatus = buildStatus ?: 'SUCCESS'
+
+    def color
+
+    if (buildStatus == 'SUCCESS') {
+        color = '#47ec05'
+    } else if (buildStatus == 'UNSTABLE') {
+        color = '#d5ee0d'
+    } else {
+        color = '#ec2805'
+    }
+
+    def msg = "${buildStatus}: ${PROJECT_NAME} - ${env.JOB_NAME} #${env.BUILD_NUMBER}:\n${env.BUILD_URL}"
+
+    slackSend(channel: SLACK_CHANNEL, color: color, message: msg)
+}
+
 pipeline { 
     agent any
 
@@ -8,12 +26,13 @@ tools {
 environment {
     GIT_REPO_URL = 'https://github.com/Nuvvai/Graduation-project-node-api.git' // github repo where the app exist
     BRANCH_TYPE = "main" // the name of the branch where the app exist
-    IMAGE_TYPE = "nuvvai_backend" // used in the image name
+    PROJECT_NAME = "nuvvai_backend" // used in the image name
     DOCKER_HUB_REPO = 'nagham94' // name of dockerhub repo
     SONAR_SCANNER_HOME = tool 'sonarqube-scanner702' // sonar scanner server
     SONAR_PROJECT_KEY = 'solar-app' // sonar scanner project name
     USER_NAME = "Nagham"
     EMAIL_RECIPIENTS = "naghamfathy94@gmail.com" // email of the user
+    SLACK_CHANNEL = "#nuvvai-app-build-status" // name of slack channel
     }
 
 options {
@@ -32,7 +51,7 @@ stages {
                     env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     sh "echo Checked out commit: ${env.GIT_COMMIT}"
                     // Set IMAGE_NAME variable
-                    env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${IMAGE_TYPE}:${env.GIT_COMMIT}"
+                    env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${PROJECT_NAME}:${env.GIT_COMMIT}"
                     sh "echo Global Image Name: ${env.IMAGE_NAME}"
                 }
             }
@@ -188,15 +207,32 @@ stages {
 
     post {
       always {
+        // convert reports from HTML to pdf
         sh 'wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf'
         sh 'wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf'
+
+        // Slack Message
+        slackNotificationMethod("${currentBuild.result}", env.PROJECT_NAME, env.SLACK_CHANNEL)
+
+        slackUploadFile(
+             channel: SLACK_CHANNEL,
+             filePath: "trivy-image-MEDIUM-results.pdf",
+             initialComment: "Trivy Medium Vulnerability Report for Build #${env.BUILD_NUMBER}"
+        )
+
+        slackUploadFile(
+             channel: SLACK_CHANNEL,
+             filePath: "trivy-image-CRITICAL-results.pdf",
+             initialComment: "Trivy Critical Vulnerability Report for Build #${env.BUILD_NUMBER}"
+        )
+
         // Send Email Notification
         emailext( 
             subject: "Nuvvai Security Scan Report - Jenkins Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
             body: """
               <h2>Security Scan Report - Build ${currentBuild.result}</h2>
               <p>Dear Development Team,</p>
-              <p>The Trivy vulnerability scan for the latest build of the <strong>Nuvvai</strong> application has completed.</p>
+              <p>The Trivy vulnerability scan for the latest build of the <strong>Nuvvai</strong> application "Node-API part" has completed.</p>
               <p>Please review the attached reports for detailed information on detected vulnerabilities.</p>
               <ul>
               <li><strong>Job:</strong> ${env.JOB_NAME}</li>
