@@ -48,7 +48,7 @@ pipeline {
         stage('Checkout Application Repository') {
             steps {
                 script {
-                   // deleteDir()  // Clears workspace before checking out repo
+                    deleteDir()  // Clears workspace before checking out repo
                     git branch: BRANCH_TYPE, credentialsId: 'github_token', url: GIT_REPO_URL
                     // Set GIT_COMMIT variable
                     env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
