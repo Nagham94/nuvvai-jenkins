@@ -28,9 +28,10 @@ pipeline {
         DOCKER_HUB_REPO = 'nagham94' // name of dockerhub repo
         GIT_REPO_URL = 'https://github.com/Nagham94/solar-system-gitea-jenkins-advanced.git' // github repo where the app exist
         PROJECT_NAME = "solar-app" // the image name 
-        BRANCH_TYPE = "main" // the name of the branch where the app exist
+        BRANCH_NAME = "main" // the name of the branch where the app exist
         TECHNOLOGY = 'nodejs' // the technology name (e.g., "nodejs", "django", "golang", etc.)
         DOCKERFILES_REPO = 'https://github.com/Nagham94/Dockerfiles2.git' // name of the dockerfile repo
+        DOCKERFILE_BRANCH = 'main' // the name of the branch where the dockerfile exist
         SONAR_SCANNER_HOME = tool 'sonarqube-scanner702' // sonar scanner server
         SONAR_PROJECT_KEY = 'solar-app' // sonar scanner project name 
         SLACK_CHANNEL = "#nuvvai-users-builds" // name of slack channel
@@ -39,6 +40,7 @@ pipeline {
     }
 
     options {
+        timestamps() // for full log traceability
         disableResume() // Prevents the pipeline from resuming after a Jenkins restart or crash
         // If a new build starts while another is already running, the previous build is aborted to prevent conflicts
         disableConcurrentBuilds abortPrevious: true
@@ -46,10 +48,14 @@ pipeline {
 
     stages {
         stage('Checkout Application Repository') {
+            options {
+              retry(2) // retry this stage up to 2 more times if it fails
+            }
             steps {
                 script {
                     deleteDir()  // Clears workspace before checking out repo
-                    git branch: BRANCH_TYPE, credentialsId: 'github_token', url: GIT_REPO_URL
+                    git branch: BRANCH_NAME, credentialsId: 'github_token', url: GIT_REPO_URL
+                    echo "Repository checkout successful"
                     // Set GIT_COMMIT variable
                     env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     sh "echo Checked out commit: ${env.GIT_COMMIT}"
@@ -60,8 +66,11 @@ pipeline {
             }
         }
 
-        stage('Installing Dependencies') {
-            options { timestamps() }
+        stage('Install Project Dependencies') {
+            options { 
+              retry(2) // retry this stage up to 2 more times if it fails
+              timeout(time: 10, unit: 'MINUTES')
+            }
             steps {
                 script {
                     switch (env.TECHNOLOGY) {
@@ -95,12 +104,14 @@ pipeline {
                         
                         default:
                             echo "No matching technology found or TECHNOLOGY variable not set. Skipping dependency installation."
-                    }
+                    
+                    echo "[DONE] Dependencies installed successfully"
+                }
                 } 
             }
         }
 
-        stage('Build Application') {
+        stage('Build Application Artifacts') {
             steps {
                 script {
                     switch (env.TECHNOLOGY) {
@@ -124,12 +135,17 @@ pipeline {
 
                         default:
                             echo "No specific build step for ${env.TECHNOLOGY}."
+
+                    echo "[DONE] Build APP successfully"
                     }
                 }
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('Static Code Analysis with SonarQube') {
+            options { 
+            timeout(time: 15, unit: 'MINUTES')
+            }
             steps {
                 script {
                    def sonarLanguage = ''
@@ -165,7 +181,6 @@ pipeline {
                                 sonarExclusions = ''
         }
 
-                timeout(time: 5, unit: 'MINUTES') {
                     withSonarQubeEnv('sonarqube-server') {
                         sh """
                             $SONAR_SCANNER_HOME/bin/sonar-scanner \
@@ -173,10 +188,10 @@ pipeline {
                                 -Dsonar.sources=. \
                                 -Dsonar.language=${sonarLanguage} \
                                 -Dsonar.sourceEncoding=UTF-8 \
-                                -Dsonar.exclusions=${sonarExclusions} \
+                                -Dsonar.exclusions=${sonarExclusions} 
                         """
+                        echo "[DONE] SonarQube scan completed"
                     }
-                }
                     // Quality Gate check but does NOT stop the pipeline on failure
                     script {
                         def qualityGate = waitForQualityGate()
@@ -189,16 +204,20 @@ pipeline {
             }
         }
 
-        stage('Checkout Dockerfiles Repository') {
+        stage('Checkout and Prepare Dockerfile') {
+            options {
+              retry(2) // retry this stage up to 2 more times if it fails
+            }
             steps {
                 script {
                     dir('dockerfiles_repo') {
-                        git branch: BRANCH_TYPE, credentialsId: 'github_token', url: DOCKERFILES_REPO
+                        git branch: DOCKERFILE_BRANCH, credentialsId: 'github_token', url: DOCKERFILES_REPO
                     }
+                    echo "Repository checkout successful"
                     // Copy Dockerfile to Application Repo
                     sh """
-                        cp dockerfiles_repo/${TECHNOLOGY}/Dockerfile .
-                        echo "Copied Dockerfile for ${TECHNOLOGY} to project root"
+                        cp dockerfiles_repo/Dockerfile .
+                        echo "Copied Dockerfile to project root"
                     """
                     // Delete Dockerfiles Repository
                     sh """
@@ -210,6 +229,10 @@ pipeline {
         }
 
         stage('Build Docker Image') {
+            options {
+              retry(2) // retry this stage up to 2 more times if it fails
+              timeout(time: 15, unit: 'MINUTES')
+            }
             steps {
                 script {
                     sh """
@@ -220,7 +243,7 @@ pipeline {
             }
         }
 
-        stage('Trivy Vulnerability Scanner') { 
+        stage('Trivy Vulnerability Scanner') {
             steps {
                 sh  """ 
                     trivy image ${env.IMAGE_NAME} \
@@ -234,6 +257,8 @@ pipeline {
                         --exit-code 1 \
                         --quiet \
                         --format json -o trivy-image-CRITICAL-results.json
+                    
+                    echo "[DONE] Trivy scan completed."
                 """
             }
 
@@ -268,6 +293,9 @@ pipeline {
         }
         
         stage('Login to Docker Hub') {
+            options {
+              retry(2) // retry this stage up to 2 more times if it fails
+            }
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
@@ -278,11 +306,15 @@ pipeline {
         }
 
         stage('Push Docker Images to Docker Hub') {
+            options {
+              retry(2) // retry this stage up to 2 more times if it fails
+              timeout(time: 15, unit: 'MINUTES')
+            }
             steps {
                 script {
                         sh """
                            docker push ${env.IMAGE_NAME}
-                           echo "Pushed Docker image: ${env.IMAGE_NAME}"
+                           echo "[DONE] Image pushed successfully: ${env.IMAGE_NAME}"
                         """
                 }
             }
@@ -328,6 +360,15 @@ pipeline {
             mimeType: 'text/html',
             attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf'
         )
+
+        // Clean up Docker images
+        script {
+        echo "Cleaning up Docker images to free disk space..."
+        // Remove the image built in this pipeline
+        sh "docker rmi -f ${env.IMAGE_NAME} || true"
+        // Remove dangling images that don’t have a tag (their tag shows as <none>)
+        sh "docker image prune -f"
+        }
 
       }
     }
