@@ -75,6 +75,12 @@ stages {
            }
         }
 
+    stage('Build Application Artifacts') {
+            steps {
+                sh 'npm run build'
+            }
+    }
+
 //    stage('Unit Testing') {
 //        options {
 //             retry(2) // retry this stage up to 2 more times if it fails
@@ -102,37 +108,6 @@ stages {
 //      }
 //    }
 
-    stage('Build Application Artifacts') {
-            steps {
-                sh 'npm run build'
-            }
-    }
-
-    stage('Static Code Analysis with SonarQube') {
-            options { 
-            timeout(time: 15, unit: 'MINUTES')
-            }
-            steps {
-                script {
-                    withSonarQubeEnv('sonarqube-server') {
-                        sh """
-                            $SONAR_SCANNER_HOME/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.sources=.
-                        """
-                        echo "[DONE] SonarQube scan completed"
-                    }
-                    // Quality Gate check but does NOT stop the pipeline on failure
-                    script {
-                        def qualityGate = waitForQualityGate()
-                        if (qualityGate.status != 'OK') {
-                            echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
-                        }
-                    }
-                }
-            }
-    }
-
     stage('Build Docker Image') {
             options {
               retry(2) // retry this stage up to 2 more times if it fails
@@ -148,51 +123,50 @@ stages {
             }
     }
 
-    stage('Trivy Vulnerability Scanner') { 
-            steps {
-                sh  """ 
-                    trivy image ${env.IMAGE_NAME} \
-                        --severity LOW,MEDIUM,HIGH \
-                        --exit-code 0 \
-                        --quiet \
-                        --format json -o trivy-image-MEDIUM-results.json
+    stage('Parallel Run Scans') {
+            parallel {
+                stage('Static Code Analysis with SonarQube') {
+                  options { 
+                     timeout(time: 15, unit: 'MINUTES')
+                  }
+                  steps {
+                     script {
+                      withSonarQubeEnv('sonarqube-server') {
+                          sh """
+                            $SONAR_SCANNER_HOME/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.sources=. 
+                          """
+                          echo "[DONE] SonarQube scan completed"
+                      }
+                      // Quality Gate check but does NOT stop the pipeline on failure
+                      script {
+                          def qualityGate = waitForQualityGate()
+                          if (qualityGate.status != 'OK') {
+                              echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
+                          }
+                      }
+                    }
+                 }
+                }
 
-                    trivy image ${env.IMAGE_NAME} \
-                        --severity CRITICAL \
-                        --exit-code 1 \
-                        --quiet \
-                        --format json -o trivy-image-CRITICAL-results.json
+                stage('Trivy Vulnerability Scanner') { 
+                    steps {
+                      sh  """ 
+                        trivy image ${env.IMAGE_NAME} \
+                           --severity LOW,MEDIUM,HIGH \
+                           --exit-code 0 \
+                           --quiet \
+                           --format json -o trivy-image-MEDIUM-results.json
 
-                    echo "[DONE] Trivy scan completed."
-                """
-            }
-
-            post {
-                always {
-                    sh '''
-                        trivy convert \
-                            --format template --template "@/usr/local/share/trivy/templates/html.tpl" \
-                            --output trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.json 
-
-                        trivy convert \
-                            --format template --template "@/usr/local/share/trivy/templates/html.tpl" \
-                            --output trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.json
-
-                        trivy convert \
-                            --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
-                            --output trivy-image-MEDIUM-results.xml  trivy-image-MEDIUM-results.json 
-
-                        trivy convert \
-                            --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
-                            --output trivy-image-CRITICAL-results.xml trivy-image-CRITICAL-results.json          
-                    '''
-                    junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-CRITICAL-results.xml'
-
-                    junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-MEDIUM-results.xml'
-
-                    publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-CRITICAL-results.html', reportName: 'Trivy Image Critical Vul Report', reportTitles: '', useWrapperFileDirectly: true])
-
-                    publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-MEDIUM-results.html', reportName: 'Trivy Image Medium Vul Report', reportTitles: '', useWrapperFileDirectly: true])
+                        trivy image ${env.IMAGE_NAME} \
+                           --severity CRITICAL \
+                           --exit-code 1 \
+                           --quiet \
+                           --format json -o trivy-image-CRITICAL-results.json
+                     """
+                     echo "[DONE] Trivy scan completed."
+                     }
                 }
             }
     }
@@ -229,26 +203,58 @@ stages {
 
     post {
       always {
+        sh '''
+            trivy convert \
+                --format template --template "@/usr/local/share/trivy/templates/html.tpl" \
+                --output trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.json 
+
+            trivy convert \
+                --format template --template "@/usr/local/share/trivy/templates/html.tpl" \
+                --output trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.json
+
+            trivy convert \
+                --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
+                --output trivy-image-MEDIUM-results.xml  trivy-image-MEDIUM-results.json 
+
+            trivy convert \
+                --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
+                --output trivy-image-CRITICAL-results.xml trivy-image-CRITICAL-results.json          
+        '''
+        junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-CRITICAL-results.xml'
+
+        junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-MEDIUM-results.xml'
+
+        publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-CRITICAL-results.html', reportName: 'Trivy Image Critical Vul Report', reportTitles: '', useWrapperFileDirectly: true])
+
+        publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-MEDIUM-results.html', reportName: 'Trivy Image Medium Vul Report', reportTitles: '', useWrapperFileDirectly: true])
+   
+        // convert reports from HTML to pdf
         sh 'wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf'
         sh 'wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf'
 
-        // Slack Message
-        slackNotificationMethod("${currentBuild.result}", env.PROJECT_NAME, env.SLACK_CHANNEL)
+       // Parallel notifications
+       script {
+         parallel (
+          slack_notify: {
+            // Slack Message
+            slackNotificationMethod("${currentBuild.result}", env.PROJECT_NAME, env.SLACK_CHANNEL)
 
-        slackUploadFile(
-             channel: SLACK_CHANNEL,
-             filePath: "trivy-image-MEDIUM-results.pdf",
-             initialComment: "Trivy Medium Vulnerability Report for Build #${env.BUILD_NUMBER}"
-        )
+            slackUploadFile(
+                channel: SLACK_CHANNEL,
+                filePath: "trivy-image-MEDIUM-results.pdf",
+                initialComment: "Trivy Medium Vulnerability Report for Build #${env.BUILD_NUMBER}"
+            )
 
-        slackUploadFile(
-             channel: SLACK_CHANNEL,
-             filePath: "trivy-image-CRITICAL-results.pdf",
-             initialComment: "Trivy Critical Vulnerability Report for Build #${env.BUILD_NUMBER}"
-        )
+            slackUploadFile(
+                channel: SLACK_CHANNEL,
+                filePath: "trivy-image-CRITICAL-results.pdf",
+                initialComment: "Trivy Critical Vulnerability Report for Build #${env.BUILD_NUMBER}"
+            )
+        },
 
+     send_email: {
         // Send Email Notification
-        emailext( 
+         emailext( 
             subject: "Nuvvai Security Scan Report - Jenkins Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
             body: """
               <h2>Security Scan Report - Build ${currentBuild.result}</h2>
@@ -269,6 +275,9 @@ stages {
             mimeType: 'text/html',
             attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf'
         )
+        }
+      )
+    }
 
         // Clean up Docker images
         script {
