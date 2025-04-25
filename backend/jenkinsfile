@@ -81,32 +81,32 @@ stages {
             }
     }
     
-//    stage('Unit Testing') {
-//      options {
-//            retry(2) // retry this stage up to 2 more times if it fails
-//         }
-//      steps {
-//        catchError(buildResult: 'SUCCESS', message: 'Oops! it will be fixed in future releases', stageResult: 'UNSTABLE') {
-//            // Run tests and output results in JUnit format
-//            sh 'npm test'
+    stage('Unit Testing') {
+      options {
+            retry(2) // retry this stage up to 2 more times if it fails
+         }
+      steps {
+        catchError(buildResult: 'SUCCESS', message: 'Oops! it will be fixed in future releases', stageResult: 'UNSTABLE') {
+            // Run tests and output results in JUnit format
+            sh 'npm run test:unit'
 
-//            // Publish test results to Jenkins UI / Blue Ocean
-//            junit allowEmptyResults: true, keepProperties: true, testResults: 'test-results/test-results.xml'
+            // Publish test results to Jenkins UI / Blue Ocean
+            junit allowEmptyResults: true, keepProperties: true, testResults: 'test-results/junit.xml'
 
-//            // Publish code coverage HTML report
-//            publishHTML([
-//               allowMissing: true,
-//               alwaysLinkToLastBuild: true,
-//               keepAll: true,
-//               reportDir: 'coverage/lcov-report',
-//               reportFiles: 'index.html',
-//               reportName: 'Code Coverage HTML Report',
-//               reportTitles: '',
-//               useWrapperFileDirectly: true
-//            ])
-//        }
-//      }
-//    }
+            // Publish code coverage HTML report
+            publishHTML([
+               allowMissing: true,
+               alwaysLinkToLastBuild: true,
+               keepAll: true,
+               reportDir: 'coverage/lcov-report',
+               reportFiles: 'index.html',
+               reportName: 'Code Coverage HTML Report',
+               reportTitles: '',
+               useWrapperFileDirectly: true
+            ])
+        }
+      }
+    }
 
     stage('Build Docker Image') {
             options {
@@ -229,8 +229,13 @@ stages {
         publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-MEDIUM-results.html', reportName: 'Trivy Image Medium Vul Report', reportTitles: '', useWrapperFileDirectly: true])
      
         // convert reports from HTML to pdf
-        sh 'wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf'
-        sh 'wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf'
+        sh '''
+           wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf
+           wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf
+           wkhtmltopdf --enable-local-file-access coverage/lcov-report/index.html coverage-report.pdf
+           xsltproc /usr/share/java/junit-xml.xsl test-results/junit.xml -o junit-report.html
+           wkhtmltopdf junit-report.html junit-report.pdf
+        '''
 
        // Parallel notifications
        script {
@@ -250,31 +255,51 @@ stages {
                  filePath: "trivy-image-CRITICAL-results.pdf",
                  initialComment: "Trivy Critical Vulnerability Report for Build #${env.BUILD_NUMBER}"
             )
+
+            //slackUploadFile(
+            //     channel: SLACK_CHANNEL,
+            //     filePath: "junit-report.pdf",
+            //     initialComment: "JUnit Test Report for Build #${env.BUILD_NUMBER}"
+            //)
+
+            slackUploadFile(
+                 channel: SLACK_CHANNEL,
+                 filePath: "coverage-report.pdf",
+                 initialComment: "Code Coverage Report for Build #${env.BUILD_NUMBER}"
+            )
+
         },
 
      send_email: {
         // Send Email Notification
         emailext( 
-            subject: "Nuvvai Security Scan Report - Jenkins Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: """
-              <h2>Security Scan Report - Build ${currentBuild.result}</h2>
-              <p>Dear Development Team,</p>
-              <p>The Trivy vulnerability scan for the latest build of the <strong>Nuvvai</strong> application "Node-API part" has completed.</p>
-              <p>Please review the attached reports for detailed information on detected vulnerabilities.</p>
-              <ul>
-              <li><strong>Job:</strong> ${env.JOB_NAME}</li>
-              <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
-              </ul>
-              <p>Action is required to address any <strong>CRITICAL</strong> or <strong>HIGH</strong> severity issues identified during the scan.</p>
-              <p>Ensure to resolve these findings promptly to maintain the security integrity of the application.</p>
-              <p>Reach out to the DevOps team if you need any support or clarification.</p>
-              <p>Best regards,</p>
-              <p><strong>DevOps Team - Nuvvai</strong></p>
-            """,
-            to: EMAIL_RECIPIENTS,
-            mimeType: 'text/html',
-            attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf'
+         subject: "Nuvvai Security Scan and Code Coverage Report - Jenkins Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+          body: """
+             <h2>Security Scan and Code Coverage Report - Build ${currentBuild.result}</h2>
+             <p>Dear Development Team,</p>
+             <p>The Trivy vulnerability scan and code coverage analysis for the latest build of the <strong>Nuvvai</strong> application <strong>"Node-API part"</strong>have been completed.</p>
+             <p>Please review the attached reports for detailed information on detected vulnerabilities and code coverage results.</p>
+             <ul>
+               <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+               <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+             </ul>
+             <p><strong>Security Scan Report:</strong></p>
+             <p>The vulnerability scan has identified critical and high-severity issues that require attention:</p>
+             <ul>
+               <li><strong>CRITICAL</strong> and <strong>HIGH</strong> severity vulnerabilities have been detected and need to be addressed promptly.</li>
+             </ul>
+             <p><strong>Code Coverage Report:</strong></p>
+             <p>Along with the security scan, the code coverage report has been attached for your review. Please ensure that all areas of the code are adequately tested and covered to maintain the quality of the application.</p>
+             <p>Action is required to address any <strong>CRITICAL</strong> or <strong>HIGH</strong> security vulnerabilities and to review code coverage improvements.</p>
+             <p>If you have any questions or need support, feel free to reach out to the DevOps team.</p>
+             <p>Best regards,</p>
+             <p><strong>DevOps Team - Nuvvai</strong></p>
+          """,
+          to: EMAIL_RECIPIENTS,
+          mimeType: 'text/html',
+          attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf,coverage-report.pdf'
         )
+
          }
       )
     }
