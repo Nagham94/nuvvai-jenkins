@@ -198,8 +198,7 @@ stages {
                 }
             }
     }
-
-    }
+ }
 
     post {
       always {
@@ -233,8 +232,7 @@ stages {
            wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf
            wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf
            wkhtmltopdf --enable-local-file-access coverage/lcov-report/index.html coverage-report.pdf
-           xsltproc /usr/share/java/junit-xml.xsl test-results/junit.xml -o junit-report.html
-           wkhtmltopdf junit-report.html junit-report.pdf
+           wkhtmltopdf test-results/test-report.html test-report.pdf
         '''
 
        // Parallel notifications
@@ -256,11 +254,11 @@ stages {
                  initialComment: "Trivy Critical Vulnerability Report for Build #${env.BUILD_NUMBER}"
             )
 
-            //slackUploadFile(
-            //     channel: SLACK_CHANNEL,
-            //     filePath: "junit-report.pdf",
-            //     initialComment: "JUnit Test Report for Build #${env.BUILD_NUMBER}"
-            //)
+            slackUploadFile(
+                 channel: SLACK_CHANNEL,
+                 filePath: "test-report.pdf",
+                 initialComment: "JUnit Test Report for Build #${env.BUILD_NUMBER}"
+            )
 
             slackUploadFile(
                  channel: SLACK_CHANNEL,
@@ -271,35 +269,35 @@ stages {
         },
 
      send_email: {
-        // Send Email Notification
-        emailext( 
-         subject: "Nuvvai Security Scan and Code Coverage Report - Jenkins Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-          body: """
-             <h2>Security Scan and Code Coverage Report - Build ${currentBuild.result}</h2>
-             <p>Dear Development Team,</p>
-             <p>The Trivy vulnerability scan and code coverage analysis for the latest build of the <strong>Nuvvai</strong> application <strong>"Node-API part"</strong>have been completed.</p>
-             <p>Please review the attached reports for detailed information on detected vulnerabilities and code coverage results.</p>
-             <ul>
-               <li><strong>Job:</strong> ${env.JOB_NAME}</li>
-               <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
-             </ul>
-             <p><strong>Security Scan Report:</strong></p>
-             <p>The vulnerability scan has identified critical and high-severity issues that require attention:</p>
-             <ul>
-               <li><strong>CRITICAL</strong> and <strong>HIGH</strong> severity vulnerabilities have been detected and need to be addressed promptly.</li>
-             </ul>
-             <p><strong>Code Coverage Report:</strong></p>
-             <p>Along with the security scan, the code coverage report has been attached for your review. Please ensure that all areas of the code are adequately tested and covered to maintain the quality of the application.</p>
-             <p>Action is required to address any <strong>CRITICAL</strong> or <strong>HIGH</strong> security vulnerabilities and to review code coverage improvements.</p>
-             <p>If you have any questions or need support, feel free to reach out to the DevOps team.</p>
-             <p>Best regards,</p>
-             <p><strong>DevOps Team - Nuvvai</strong></p>
-          """,
-          to: EMAIL_RECIPIENTS,
-          mimeType: 'text/html',
-          attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf,coverage-report.pdf'
-        )
-
+      // Send Email Notification
+      emailext( 
+        subject: "Nuvvai Security, Code Coverage, and Test Report - Jenkins Build ${currentBuild.result}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        body: """
+           <h2>Security Scan, Code Coverage, and Test Report - Build ${currentBuild.result}</h2>
+           <p>Dear Development Team,</p>
+           <p>The Trivy vulnerability scan, code coverage analysis, and test execution for the latest build of the <strong>Nuvvai</strong> application <strong>"Node-API part"</strong> have been completed.</p>
+           <p>Please review the attached reports for detailed information regarding detected vulnerabilities, code coverage results, and test outcomes.</p>
+           <ul>
+             <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+             <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+           </ul>
+           <p><strong>Security Scan Report:</strong></p>
+           <p>The vulnerability scan has identified critical and high-severity issues that require immediate attention:</p>
+           <ul>
+             <li><strong>CRITICAL</strong> and <strong>HIGH</strong> severity vulnerabilities have been detected and need to be addressed promptly.</li>
+           </ul>
+           <p><strong>Code Coverage Report:</strong></p>
+           <p>The code coverage report is attached for your review. Please ensure that all major areas of the codebase are sufficiently tested and covered to maintain application quality.</p>
+           <p><strong>Test Report:</strong></p>
+           <p>The test execution report is also attached, providing detailed results of the test cases run against this build. Please review any failed or unstable tests and take necessary actions.</p>
+           <p>If you have any questions or need assistance, feel free to reach out to the DevOps team.</p>
+           <p>Best regards,</p>
+           <p><strong>DevOps Team - Nuvvai</strong></p>
+        """,
+        to: EMAIL_RECIPIENTS,
+        mimeType: 'text/html',
+        attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf,coverage-report.pdf,test-report.pdf'
+      )
          }
       )
     }
