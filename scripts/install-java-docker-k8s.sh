@@ -23,7 +23,7 @@ sudo systemctl enable docker
 sudo systemctl start docker
 
 # Allow your WSL user to run Docker without 'sudo'
-sudo usermod -aG docker $USER
+sudo usermod -aG docker ubuntu
 
 
 # install k8s
