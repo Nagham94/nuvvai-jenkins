@@ -44,20 +44,18 @@ options {
     }
 
 stages {
-    stage('Checkout Application Repository') {
+    stage('Set Image Variable') {
             options {
               retry(2) // retry this stage up to 2 more times if it fails
             }
             steps {
                 script {
-                    deleteDir()  // Clears workspace before checking out repo
-                    git branch: BRANCH_NAME, credentialsId: 'github_token', url: GIT_REPO_URL
-                    echo "Repository checkout successful"
+                    //deleteDir()  // Clears workspace before checking out repo
                     // Set GIT_COMMIT variable
-                    env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    sh "echo Checked out commit: ${env.GIT_COMMIT}"
+                    //env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    //sh "echo Checked out commit: ${env.GIT_COMMIT}"
                     // Set IMAGE_NAME variable
-                    env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${PROJECT_NAME}:${env.GIT_COMMIT}"
+                    env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${PROJECT_NAME}:latest"
                     sh "echo Global Image Name: ${env.IMAGE_NAME}"
                 }
             }
