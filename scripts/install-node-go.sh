@@ -3,7 +3,7 @@
 curl -o- https://fnm.vercel.app/install | bash
 
 # Download and install Node.js:
-fnm install 22
+fnm install 22   #LTS
 
 # Verify the Node.js version:
 node -v # Should print "v22.15.0".

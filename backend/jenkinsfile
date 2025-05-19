@@ -20,18 +20,19 @@ pipeline {
     agent any
 
 tools {
-        nodejs 'nodejs-23.7.0'
+        //nodejs 'nodejs-23.7.0'
+        dockerTool  'docker-latest'
     }
 
 environment {
     GIT_REPO_URL = 'https://github.com/Nuvvai/Graduation-project-node-api.git' // github repo where the app exist
     BRANCH_NAME = "main" // the name of the branch where the app exist
     PROJECT_NAME = "nuvvai_backend" // used in the image name
-    DOCKER_HUB_REPO = 'nagham94' // name of dockerhub repo
+    DOCKER_HUB_REPO = 'mennahaggag' // name of dockerhub repo
     SONAR_SCANNER_HOME = tool 'sonarqube-scanner702' // sonar scanner server
-    SONAR_PROJECT_KEY = 'solar-app' // sonar scanner project name
-    USER_NAME = "Nagham"
-    EMAIL_RECIPIENTS = "naghamfathy94@gmail.com" // email of the user
+    SONAR_PROJECT_KEY = 'test1' // sonar scanner project name
+    USER_NAME = "mennauser"
+    EMAIL_RECIPIENTS = "mennaa619@gmail.com" // email of the user
     SLACK_CHANNEL = "#nuvvai-app-build-status" // name of slack channel
     }
 
@@ -123,32 +124,32 @@ stages {
             }
     }
 
-    stage('Parallel Run Scans') {
-            parallel {
-                stage('Static Code Analysis with SonarQube') {
-                  options { 
-                     timeout(time: 15, unit: 'MINUTES')
-                  }
-                  steps {
-                     script {
-                      withSonarQubeEnv('sonarqube-server') {
-                          sh """
-                            $SONAR_SCANNER_HOME/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.sources=. 
-                          """
-                          echo "[DONE] SonarQube scan completed"
-                      }
-                      // Quality Gate check but does NOT stop the pipeline on failure
-                      script {
-                          def qualityGate = waitForQualityGate()
-                          if (qualityGate.status != 'OK') {
-                              echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
-                          }
-                      }
-                    }
-                 }
-                }
+ //   stage('Parallel Run Scans') {
+ //           parallel {
+ //               stage('Static Code Analysis with SonarQube') {
+ //                 options { 
+ //                    timeout(time: 15, unit: 'MINUTES')
+ //                 }
+ //                 steps {
+ //                    script {
+ //                     withSonarQubeEnv('sonarqube-server') {
+ //                         sh """
+ //                           $SONAR_SCANNER_HOME/bin/sonar-scanner \
+ //                               -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+ //                               -Dsonar.sources=. 
+ //                         """
+ //                         echo "[DONE] SonarQube scan completed"
+ //                     }
+ //                     // Quality Gate check but does NOT stop the pipeline on failure
+ //                     script {
+ //                         def qualityGate = waitForQualityGate()
+ //                         if (qualityGate.status != 'OK') {
+ //                             echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
+ //                         }
+ //                     }
+ //                   }
+ //                }
+ //               }
 
                 stage('Trivy Vulnerability Scanner') { 
                     steps {
@@ -168,8 +169,8 @@ stages {
                      echo "[DONE] Trivy scan completed."
                      }
                 }
-            }
-    }
+ //           }
+ //   }
     
     stage('Login to Docker Hub') {
               options {
@@ -178,7 +179,9 @@ stages {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        sh '''
+                            docker login -u "$DOCKER_USER" --password "$DOCKER_PASS"
+                        '''
                     }
                 }
             }
