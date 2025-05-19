@@ -18,25 +18,20 @@ def slackNotificationMethod(String buildStatus = 'STARTED', String PROJECT_NAME,
 
 pipeline { 
     agent any
-    
-    tools {
-        nodejs 'nodejs-23.7.0'
-        go 'go-1.24.0'
-    }
 
     environment {
-        DOCKER_HUB_REPO = 'nagham94' // name of dockerhub repo
-        GIT_REPO_URL = 'https://github.com/Nagham94/solar-system-gitea-jenkins-advanced.git' // github repo where the app exist
+        DOCKER_HUB_REPO = 'mennahaggag' // name of dockerhub repo
+        GIT_REPO_URL = 'https://github.com/Mennatallah9/solar-system-gitea-jenkins-advanced.git' // github repo where the app exist
         PROJECT_NAME = "solar-app" // the image name 
         BRANCH_NAME = "main" // the name of the branch where the app exist
-        TECHNOLOGY = 'nodejs' // the technology name (e.g., "nodejs", "django", "golang", etc.)
+        TECHNOLOGY = 'NodeJS' // the technology name (e.g., "nodejs", "django", "golang", etc.)
         DOCKERFILES_REPO = 'https://github.com/Nagham94/Dockerfiles2.git' // name of the dockerfile repo
         DOCKERFILE_BRANCH = 'main' // the name of the branch where the dockerfile exist
         SONAR_SCANNER_HOME = tool 'sonarqube-scanner702' // sonar scanner server
-        SONAR_PROJECT_KEY = 'solar-app' // sonar scanner project name 
+        SONAR_PROJECT_KEY = 'test1' // sonar scanner project name 
         SLACK_CHANNEL = "#nuvvai-users-builds" // name of slack channel
-        USER_NAME = "Nagham"
-        EMAIL_RECIPIENTS = "naghamfathy94@gmail.com" // email of the user
+        USER_NAME = "mennauser"
+        EMAIL_RECIPIENTS = "mennaa619@gmail.com" // email of the user
     }
 
     options {
@@ -105,7 +100,7 @@ pipeline {
             }
             steps {
                 script {
-                    switch (env.TECHNOLOGY) {
+                    switch (env.TECHNOLOGY.toLowerCase()) {
                         case 'nodejs':
                         case 'angular':
                         case 'react':
@@ -146,7 +141,7 @@ pipeline {
         stage('Build Application Artifacts') {
             steps {
                 script {
-                    switch (env.TECHNOLOGY) {
+                    switch (env.TECHNOLOGY.toLowerCase()) {
                         case 'angular':
                         case 'react':
                         case 'svelte':
@@ -189,69 +184,69 @@ pipeline {
             }
         }
 
-        stage('Parallel Run Scans') {
-            parallel {
-                  stage('Static Code Analysis with SonarQube') {
-                        options { 
-                           timeout(time: 15, unit: 'MINUTES')
-                        }
-                        steps {
-                          script {
-                            def sonarLanguage = ''
-                            def sonarExclusions = ''
-
-                            switch (env.TECHNOLOGY) {
-                               case 'nodejs':
-                               case 'angular':
-                               case 'react':
-                               case 'svelte':
-                               case 'vuejs':
-                                   sonarLanguage = 'js'
-                                   sonarExclusions = '**/node_modules/**,**/*.test.js,**/dist/**'
-                                   break
-
-                               case 'python':
-                                   sonarLanguage = 'py'
-                                   sonarExclusions = '**/venv/**,**/__pycache__/**'
-                                   break
-
-                               case 'golang':
-                                   sonarLanguage = 'go'
-                                   sonarExclusions = '**/vendor/**'
-                                   break
-
-                               case 'php':
-                                   sonarLanguage = 'php'
-                                   sonarExclusions = '**/vendor/**'
-                                   break
-
-                               default:
-                                   sonarLanguage = ''
-                                   sonarExclusions = ''
-                  }  
-
-                        withSonarQubeEnv('sonarqube-server') {
-                          sh """
-                            $SONAR_SCANNER_HOME/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.sources=. \
-                                -Dsonar.language=${sonarLanguage} \
-                                -Dsonar.sourceEncoding=UTF-8 \
-                                -Dsonar.exclusions=${sonarExclusions} 
-                          """
-                          echo "[DONE] SonarQube scan completed"
-                        }
-                        // Quality Gate check but does NOT stop the pipeline on failure
-                        script {
-                           def qualityGate = waitForQualityGate()
-                           if (qualityGate.status != 'OK') {
-                              echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
-                            }
-                        }
-                    
-                    }
-                }
-            }
+//        stage('Parallel Run Scans') {
+//            parallel {
+//                 stage('Static Code Analysis with SonarQube') {
+//                        options { 
+//                           timeout(time: 15, unit: 'MINUTES')
+//                        }
+//                        steps {
+//                          script {
+//                            def sonarLanguage = ''
+//                            def sonarExclusions = ''
+//
+//                            switch (env.TECHNOLOGY) {
+//                               case 'nodejs':
+//                               case 'angular':
+//                               case 'react':
+//                               case 'svelte':
+//                               case 'vuejs':
+//                                   sonarLanguage = 'js'
+//                                   sonarExclusions = '**/node_modules/**,**/*.test.js,**/dist/**'
+//                                   break
+//
+//                               case 'python':
+//                                   sonarLanguage = 'py'
+//                                   sonarExclusions = '**/venv/**,**/__pycache__/**'
+//                                   break
+//
+//                               case 'golang':
+//                                   sonarLanguage = 'go'
+//                                   sonarExclusions = '**/vendor/**'
+//                                   break
+//
+//                               case 'php':
+//                                   sonarLanguage = 'php'
+//                                   sonarExclusions = '**/vendor/**'
+//                                   break
+//
+//                               default:
+//                                   sonarLanguage = ''
+//                                   sonarExclusions = ''
+//                  }  
+//
+//                        withSonarQubeEnv('sonarqube-server') {
+//                          sh """
+//                            $SONAR_SCANNER_HOME/bin/sonar-scanner \
+//                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+//                                -Dsonar.sources=. \
+//                                -Dsonar.language=${sonarLanguage} \
+//                                -Dsonar.sourceEncoding=UTF-8 \
+//                                -Dsonar.exclusions=${sonarExclusions} 
+//                          """
+//                          echo "[DONE] SonarQube scan completed"
+//                        }
+//                        // Quality Gate check but does NOT stop the pipeline on failure
+//                        script {
+//                           def qualityGate = waitForQualityGate()
+//                           if (qualityGate.status != 'OK') {
+//                              echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
+//                            }
+//                        }
+//                    
+//                    }
+//                }
+//            }
 
            stage('Trivy Vulnerability Scanner') {
               steps {
@@ -272,8 +267,8 @@ pipeline {
                 """
             }
         }
-            }
-        }
+//            }
+//        }
         
         stage('Login to Docker Hub') {
             options {
@@ -282,7 +277,9 @@ pipeline {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        sh '''
+                            docker login -u "$DOCKER_USER" --password "$DOCKER_PASS"
+                        '''
                     }
                 }
             }
@@ -313,24 +310,9 @@ pipeline {
 
             trivy convert \
                 --format template --template "@/usr/local/share/trivy/templates/html.tpl" \
-                --output trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.json
-
-            trivy convert \
-                --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
-                --output trivy-image-MEDIUM-results.xml  trivy-image-MEDIUM-results.json 
-
-            trivy convert \
-                --format template --template "@/usr/local/share/trivy/templates/junit.tpl" \
-                --output trivy-image-CRITICAL-results.xml trivy-image-CRITICAL-results.json          
+                --output trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.json         
         '''
-        junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-CRITICAL-results.xml'
 
-        junit allowEmptyResults: true, stdioRetention: '', testResults: 'trivy-image-MEDIUM-results.xml'
-
-        publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-CRITICAL-results.html', reportName: 'Trivy Image Critical Vul Report', reportTitles: '', useWrapperFileDirectly: true])
-
-        publishHTML([allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: './', reportFiles: 'trivy-image-MEDIUM-results.html', reportName: 'Trivy Image Medium Vul Report', reportTitles: '', useWrapperFileDirectly: true])
- 
        // Parallel notifications
        script {
          parallel (
