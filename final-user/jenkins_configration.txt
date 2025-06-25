@@ -1,4 +1,4 @@
-#Email:
+#Email: 
 1 - plugins -> Email extention template plugin, Email extention plugin 
 2 - to set email address in jenkins :
    *in jenkins -> manage jenkins -> system -> jenkins location :
@@ -9,7 +9,7 @@
     *in Advanced section:
       1-add credentials:
          username: nuvvai.team@gmail.com
-         password: bpncurlmqlqmwbfq
+         password: lyqdbkqaywemynea
          ID -> email
       2-check Use SSL toolbox
     *Default Content Type choose -> HTML (text/html)
@@ -20,7 +20,7 @@
    *in Advanced section:
      1-check Use SMTP Authentication toolbox
           username: nuvvai.team@gmail.com
-          password: bpncurlmqlqmwbfq  
+          password: lyqdbkqaywemynea  
      2-check Use SSL toolbox
      3-SMTP Port = 465
      4-make sure that Charset = UTF-8
@@ -102,7 +102,7 @@
 
 #inside the jenkins container or the agent run: 
    """
-     apt update && \
+    apt update && \
     apt install -y php-cli php-mbstring php-dom php-tidy php-curl composer && \
     apt-get update && \
     apt-get install -y python3 python3-pip python3-venv && \
@@ -116,12 +116,15 @@
 1 - add credentials:
     *GitHub:
         username = your github username
-        passswor = github token
+        passsword = github token
         ID -> github_token
     *DockerHub:
         username = your dockerhub username
-        passswor = dockerhub token or password
+        passsword = dockerhub token or password
         ID -> dockerhub
 
 #notes:
 1 - make sure that the version of java installed on jenkins container or the agent and used by jenkins is jdk17
+
+#plugins:
+1 - HTML Publisher
