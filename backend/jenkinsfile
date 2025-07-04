@@ -45,10 +45,6 @@ stages {
             }
             steps {
                 script {
-                    //deleteDir()  // Clears workspace before checking out repo
-                    // Set GIT_COMMIT variable
-                    //env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    //sh "echo Checked out commit: ${env.GIT_COMMIT}"
                     // Set IMAGE_NAME variable
                     env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${PROJECT_NAME}:latest"
                     sh "echo Global Image Name: ${env.IMAGE_NAME}"
@@ -102,32 +98,32 @@ stages {
             }
     }
 
- //   stage('Parallel Run Scans') {
- //           parallel {
- //               stage('Static Code Analysis with SonarQube') {
- //                 options { 
- //                    timeout(time: 15, unit: 'MINUTES')
- //                 }
- //                 steps {
- //                    script {
- //                     withSonarQubeEnv('sonarqube-server') {
- //                         sh """
- //                           $SONAR_SCANNER_HOME/bin/sonar-scanner \
- //                               -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
- //                               -Dsonar.sources=. 
- //                         """
- //                         echo "[DONE] SonarQube scan completed"
- //                     }
- //                     // Quality Gate check but does NOT stop the pipeline on failure
- //                     script {
- //                         def qualityGate = waitForQualityGate()
- //                         if (qualityGate.status != 'OK') {
- //                             echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
- //                         }
- //                     }
- //                   }
- //                }
- //               }
+    stage('Parallel Run Scans') {
+            parallel {
+                stage('Static Code Analysis with SonarQube') {
+                  options { 
+                     timeout(time: 15, unit: 'MINUTES')
+                  }
+                  steps {
+                     script {
+                      withSonarQubeEnv('sonarqube-server') {
+                          sh """
+                            $SONAR_SCANNER_HOME/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.sources=. 
+                          """
+                          echo "[DONE] SonarQube scan completed"
+                      }
+                      // Quality Gate check but does NOT stop the pipeline on failure
+                      script {
+                          def qualityGate = waitForQualityGate()
+                          if (qualityGate.status != 'OK') {
+                              echo "WARNING: SonarQube Quality Gate failed, but continuing pipeline..."
+                          }
+                      }
+                    }
+                 }
+                }
 
                 stage('Trivy Vulnerability Scanner') { 
                     steps {
@@ -147,8 +143,8 @@ stages {
                      echo "[DONE] Trivy scan completed."
                      }
                 }
- //           }
- //   }
+            }
+    }
     
     stage('Login to Docker Hub') {
               options {
