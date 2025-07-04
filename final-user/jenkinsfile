@@ -32,6 +32,9 @@ pipeline {
         SLACK_CHANNEL = "#nuvvai-users-builds" // name of slack channel
         USER_NAME = "mennauser"
         EMAIL_RECIPIENTS = "mennaa619@gmail.com" // email of the user
+        DEPLOYMENT_NAME = "Hazem_User-undefined-deployment"
+        NAMESPACE = "Hazem_User-undefined"
+        UNIT_TEST_COMMAND = '' // Default empty, will be set based on TECHNOLOGY
     }
 
     options {
@@ -54,39 +57,32 @@ pipeline {
                        git branch: BRANCH_NAME, credentialsId: 'github_token', url: GIT_REPO_URL
                        echo "Repository checkout successful"
 
-                      // Set GIT_COMMIT variable
-                      env.GIT_COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                      sh "echo Checked out commit: ${env.GIT_COMMIT}"
-
                       // Set IMAGE_NAME variable
-                      env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${PROJECT_NAME}:${env.GIT_COMMIT}"
+                      env.IMAGE_NAME = "${DOCKER_HUB_REPO}/${PROJECT_NAME}:latest"
                       sh "echo Global Image Name: ${env.IMAGE_NAME}"
+
+                      echo "Checking for conflicting files in user repo..."
+                      sh '''
+                           for file in Dockerfile Jenkinsfile k8s-manifest.yaml; do
+                              if [ -f "$file" ]; then
+                                 echo "Found conflicting file: $file. Deleting..."
+                                 rm -f "$file"
+                              fi
+                           done
+                           echo "Cleanup complete."
+                      '''
                      }
                     }
                 }
 
-                stage('Checkout and Prepare Dockerfile') {
+                stage('Checkout Dockerfile & k8s manifest repository') {
                     options {
                         retry(2)
                     }
                     steps {
                         script {
-                           dir('dockerfiles_repo') {
-                              git branch: DOCKERFILE_BRANCH, credentialsId: 'github_token', url: DOCKERFILES_REPO
-                            }
-                            echo "Dockerfile repository checkout successful"
-
-                            // Copy Dockerfile to Application Repo
-                            sh """
-                              cp dockerfiles_repo/Dockerfile .
-                              echo "Copied Dockerfile to project root"
-                            """
-
-                            // Delete Dockerfiles Repository
-                            sh """
-                              rm -rf dockerfiles_repo
-                              echo "Deleted dockerfiles_repo after copying Dockerfile"
-                            """
+                            git branch: DOCKERFILE_BRANCH, credentialsId: 'github_token', url: DOCKERFILES_REPO
+                            echo "Repository checkout successful"
                         }
                     }
                 }
@@ -172,51 +168,7 @@ pipeline {
         stage('Running Unit Tests') {
             steps {
                 script { 
-                     switch (env.TECHNOLOGY.toLowerCase()) {
-                       // Angular, React, Svelte, Vue.js, Node.js
-                       case 'nodejs':
-                       case 'angular':
-                       case 'react':
-                       case 'svelte':
-                       case 'vuejs':
-                        sh 'npm test'  // test using junit
-                       break
-
-                       // Django
-                       case 'django':
-                        sh 'python manage.py test'
-                       break
-
-                       // Flask
-                       case 'flask':
-                        sh 'pytest --junitxml=test-results.xml'
-                       break
-
-                       // Golang
-                       case 'golang':
-                        sh 'go test ./... -v | tee go-test-results.log'
-                       break
-
-                       // Laravel (PHPUnit)
-                       case 'laravel':
-                        sh 'php artisan test --log-junit test-results.xml'
-                       break
-
-                       // PHP (Using PHPUnit framework)
-                       case 'php':
-                        sh 'vendor/bin/phpunit --log-junit test-results.xml'
-                       break
-
-                       // WordPress (Using WP test framework)
-                       case 'wordpress':
-                        sh 'wp test run'
-                       break
-
-                       default:
-                        echo "No matching technology found or TECHNOLOGY variable not set. Skipping unit tests."
-                     }
-                      // to publish the test report in the UI of blue ocean 
-                      junit allowEmptyResults: true, keepProperties: true, testResults: 'test-results.xml'
+                     sh "${env.UNIT_TEST_COMMAND}"
                 }
              }
         }
@@ -352,21 +304,19 @@ pipeline {
             }
         }
         stage('Deploy to Kubernetes') {
-    options {
-        retry(2)
-        timeout(time: 15, unit: 'MINUTES')
-    }
     steps {
         script {
             sh """
-                echo "Updating manifest with the new image tag"
-                sed -i 's|image: hazem196/nuvvai-backend.*|image: hazem196/nuvvai-backend:${IMAGE_TAG}|' k8s/deployment.yaml
+                echo "Applying all Kubernetes manifests in the current directory..."
+                kubectl apply -f .
 
-                echo "Applying deployment to Kubernetes"
-                kubectl apply -f k8s/deployment.yaml
+                # echo "Forcing a rolling restart of the deployment..."
+                # kubectl rollout restart deployment $DEPLOYMENT_NAME -n $NAMESPACE
 
-                echo "Waiting for pods to be ready"
-                kubectl rollout status deployment nuvvai-backend-deployment -n nuvvai
+                echo "Waiting for rolling update to complete..."
+                kubectl rollout status deployment $DEPLOYMENT_NAME -n $NAMESPACE
+
+                echo "Deployment complete and all resources updated."
             """
         }
     }
