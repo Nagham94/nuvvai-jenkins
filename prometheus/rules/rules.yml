@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule 
+metadata:
+  labels:
+    release: prometheus 
+  name: api-rules
+spec:
+  groups:
+    - name: api 
+      rules:
+        - alert: down 
+          expr: up == 0 
+          for: 1m 
+          labels:
+            severity: critical 
+          annotations:
+            summary: "Backend service is down on {{$labels.instance}}"
+            description: "Prometheus target is not reachable or not responding."
+
+        - alert: HighLatency
+          expr: rate(http_request_duration_seconds_bucket{job="nuvvai-api", le="1"}[5m]) < 0.9
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High latency detected on {{$labels.instance}}"
+            description: "More than 10% of requests are taking longer than 1 second."
+
+        - alert: HighMemoryUsage
+          expr: container_memory_usage_bytes{container="nuvvai-backend"} / container_spec_memory_limit_bytes{container="nuvvai-backend"} > 0.9
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{$labels.instance}}"
+            description: "Backend container is using over 90% of its memory limit."
+
+        - alert: HighCPUUsage
+          expr: rate(container_cpu_usage_seconds_total{container="nuvvai-backend"}[2m]) > 0.85
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage on {{$labels.instance}}"
+            description: "Backend container CPU usage is over 85%."
+
+        - alert: BackendPodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total{container="nuvvai-backend"}[10m]) > 3
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Backend container restarting frequently"
+            description: "Container has restarted more than 3 times in the last 10 minutes."
