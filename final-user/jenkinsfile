@@ -79,8 +79,16 @@ pipeline {
                     }
                     steps {
                         script {
+                          dir('dockerfile_repo') {
                             git branch: DOCKERFILE_BRANCH, credentialsId: 'github_token', url: DOCKERFILES_REPO
                             echo "Repository checkout successful"
+                          }
+                        sh """
+                           cp dockerfile_repo/Dockerfile .
+                           cp dockerfile_repo/k8s-manifest.yaml .
+                           echo "Copied files for ${TECHNOLOGY} to project root"
+                           rm -rf dockerfile_repo
+                        """
                         }
                     }
                 }
@@ -134,6 +142,7 @@ pipeline {
             steps {
                 script {
                     switch (env.TECHNOLOGY.toLowerCase()) {
+                        case 'nodejs':
                         case 'angular':
                         case 'react':
                         case 'svelte':
@@ -145,7 +154,6 @@ pipeline {
                             sh 'go build -o app'
                             break
 
-                        case 'nodejs':
                         case 'php':
                         case 'django':
                         case 'flask':
@@ -164,7 +172,11 @@ pipeline {
         stage('Running Unit Tests') {
             steps {
                 script { 
-                     sh "${env.UNIT_TEST_COMMAND}"
+                     if (env.UNIT_TEST_COMMAND?.trim()) {
+                         sh "${env.UNIT_TEST_COMMAND}"
+                     } else {
+                         echo "UNIT_TEST_COMMAND is not set. Skipping tests."
+                     }
                 }
              }
         }
