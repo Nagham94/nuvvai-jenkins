@@ -93,21 +93,6 @@ pipeline {
                     }
                 }
             
-            stage('Build Docker Image') {
-            options {
-              retry(2) // retry this stage up to 2 more times if it fails
-              timeout(time: 15, unit: 'MINUTES')
-            }
-            steps {
-                script {
-                    sh """
-                        docker build -t ${env.IMAGE_NAME} .
-                        echo "Built Docker image: ${env.IMAGE_NAME}"
-                    """
-                }
-            }
-        }
-            
         stage('Install Project Dependencies') {
             options { 
               retry(2) // retry this stage up to 2 more times if it fails
@@ -194,6 +179,21 @@ pipeline {
                      }
                 }
              }
+        }
+
+        stage('Build Docker Image') {
+            options {
+              retry(2) // retry this stage up to 2 more times if it fails
+              timeout(time: 15, unit: 'MINUTES')
+            }
+            steps {
+                script {
+                    sh """
+                        docker build -t ${env.IMAGE_NAME} .
+                        echo "Built Docker image: ${env.IMAGE_NAME}"
+                    """
+                }
+            }
         }
 
         stage('Parallel Run Scans') {
