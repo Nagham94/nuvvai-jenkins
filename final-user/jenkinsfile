@@ -359,13 +359,14 @@ pipeline {
 
        // Parallel notifications
        script {
+         // convert reports from HTML to pdf
+         sh 'wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf'
+         sh 'wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf'
+
          parallel (
           slack_notify: {
             // Slack Message
             slackNotificationMethod("${currentBuild.result}", env.PROJECT_NAME, env.SLACK_CHANNEL)
-            // convert reports from HTML to pdf
-            sh 'wkhtmltopdf trivy-image-MEDIUM-results.html trivy-image-MEDIUM-results.pdf'
-            sh 'wkhtmltopdf trivy-image-CRITICAL-results.html trivy-image-CRITICAL-results.pdf'
 
             slackUploadFile(
                  channel: SLACK_CHANNEL,
