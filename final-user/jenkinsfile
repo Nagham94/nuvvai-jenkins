@@ -35,6 +35,8 @@ pipeline {
         DEPLOYMENT_NAME = "Hazem_User-undefined-deployment"
         NAMESPACE = "Hazem_User-undefined"
         UNIT_TEST_COMMAND = '' // Default empty, will be set based on TECHNOLOGY
+        GITHUB_APP_INSTALLATION_ID = "${installationId}"
+        TEST_RESULTS_DIR = "${testDirectory}"
     }
 
     options {
@@ -52,6 +54,12 @@ pipeline {
                   steps {
                      script {
                        deleteDir()  // Clears workspace before checking out repo
+                      // withCredentials([gitHubApp(
+                      //  appID: 'GITHUB_APP_ID', // edit this later
+                      //  installationID: "\${GITHUB_APP_INSTALLATION_ID}"
+                      //  )]) {
+                      //      git branch: BRANCH_NAME, url: GIT_REPO_URL
+                      //  }
                        git branch: BRANCH_NAME, credentialsId: 'github_token', url: GIT_REPO_URL
                        echo "Repository checkout successful"
 
@@ -379,6 +387,12 @@ pipeline {
                  filePath: "trivy-image-CRITICAL-results.pdf",
                  initialComment: "Trivy Critical Vulnerability Report for Build #${env.BUILD_NUMBER}"
             )
+
+            slackUploadFile(
+                 channel: SLACK_CHANNEL,
+                 filePath: "\${env.TEST_RESULTS_DIR}/test-report.pdf",
+                 initialComment: "JUnit Test Report for Build #\${env.BUILD_NUMBER}"
+            )
         },
 
      send_email: {
@@ -400,7 +414,7 @@ pipeline {
             """,
             to: EMAIL_RECIPIENTS,
             mimeType: 'text/html',
-            attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf'
+            attachmentsPattern: 'trivy-image-MEDIUM-results.pdf,trivy-image-CRITICAL-results.pdf, \${env.TEST_RESULTS_DIR}/test-report.pdf'
         )
          }
       )
