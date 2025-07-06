@@ -177,16 +177,17 @@ stages {
                 done
 
                 if ! kubectl get deployment nuvvai-frontend-deployment -n nuvvai >/dev/null 2>&1; then
-                    echo "Deployment not found. Applying manifests..."
-                    kubectl apply -f .
+                   echo "Deployment not found. Applying manifests..."
+                   kubectl apply -f .
                 else
                 
-                echo "Applying all Kubernetes manifests in the current directory..."
-                kubectl apply -f .
+                   echo "Applying all Kubernetes manifests in the current directory..."
+                   kubectl apply -f .
 
-                echo "Forcing a rolling restart of the deployment..."
-                kubectl rollout restart deployment nuvvai-frontend-deployment -n nuvvai
-                kubectl rollout status deployment nuvvai-frontend-deployment -n nuvvai
+                   echo "Forcing a rolling restart of the deployment..."
+                   kubectl rollout restart deployment nuvvai-frontend-deployment -n nuvvai
+                   kubectl rollout status deployment nuvvai-frontend-deployment -n nuvvai
+                fi
 
                 echo "Deployment complete and all resources updated."
             """

@@ -10,7 +10,7 @@
       1-add credentials:
          username: nuvvai.team@gmail.com
          password: lyqdbkqaywemynea
-         ID -> email
+         ID -> email        
       2-check Use SSL toolbox
     *Default Content Type choose -> HTML (text/html)
     *Default Triggers -> check always toolbox
