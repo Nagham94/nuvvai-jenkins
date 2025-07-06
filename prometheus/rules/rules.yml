@@ -36,7 +36,7 @@ spec:
             description: "Backend container is using over 90% of its memory limit."
 
         - alert: HighCPUUsage
-          expr: rate(container_cpu_usage_seconds_total{container="nuvvai-backend"}[2m]) > 0.85
+          expr: rate(container_cpu_usage_seconds_total{container="nuvvai-backend"}[5m]) > 0.85
           for: 2m
           labels:
             severity: warning
@@ -70,3 +70,14 @@ spec:
           annotations:
             summary: "OOMKilled backend container"
             description: "Container was killed due to out-of-memory condition."
+
+    - name: test-alert-group
+      rules:
+        - alert: AlwaysFiringTestAlert
+          expr: vector(1)
+          for: 1m
+          labels:
+            severity: info
+          annotations:
+            summary: "Test Alert from Prometheus"
+            description: "This is a test alert to verify the Slack integration."
