@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: alert-config
+  labels:
+    resource: prometheus
+spec:
+  route:
+    groupBy: ["alertname", "severity"]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 12h
+    receiver: slack-receiver
+  receivers:
+    - name: slack-receiver
+      slackConfigs:
+        - channel: "#nuvvai-monitoring-alerts"              
+          sendResolved: true
+          username: "alertmanager"
+          title: "{{ .CommonLabels.alertname }} - {{ .CommonLabels.severity }}"
+          text: >-
+            *Summary:* {{ .CommonAnnotations.summary }}
+            *Description:* {{ .CommonAnnotations.description }}
+            *Status:* {{ .Status }}
+            *Start Time:* {{ .StartsAt }}
+            *Instance:* {{ .CommonLabels.instance }}
+          iconEmoji: ":warning:"
+          apiURL:
+            secret:
+              name: slack-secret
+              key: webhook-url
